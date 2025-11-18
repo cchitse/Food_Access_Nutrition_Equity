@@ -15,7 +15,7 @@ The primary objective is to construct a reproducible, modular data wrangling wor
 
 </div>
 
-## Research Questions
+## ✨ Research Questions
 
 1. **Urban vs Rural Disparities**: How does food access differ between urban and rural counties in Texas?
 2. **Poverty-Access Correlation**: What is the relationship between poverty rates and limited food access?
@@ -23,7 +23,7 @@ The primary objective is to construct a reproducible, modular data wrangling wor
 4. **Education-Access Relationship**: How does educational attainment correlate with food accessibility?
 5. **Nutritional Profiles**: What are the nutritional characteristics of different food categories?
 
-## Data Sources
+## 🎯 Data Sources
 
 ### 1. USDA Food Access Research Atlas
 - **Source**: United States Department of Agriculture
@@ -46,7 +46,7 @@ The primary objective is to construct a reproducible, modular data wrangling wor
 - **Description**: Nutritional breakdowns of thousands of food items
 - **Key Variables**: Macronutrients, vitamins, minerals, food categories
 
-## Project Structure
+## 📱 Project Structure
 
 ```
 Food_Access_Nutrition_Equity/
@@ -81,7 +81,7 @@ Food_Access_Nutrition_Equity/
 └── README.md                    # This file
 ```
 
-## Data Wrangling Pipeline
+## 🚀 Data Wrangling Pipeline
 
 ### Phase 1: Data Loading and Inspection
 - Load all three datasets
@@ -125,7 +125,7 @@ Food_Access_Nutrition_Equity/
 - Create summary statistics
 - Validate data integrity
 
-## Implementation Details
+## 🔧 Implementation Details
 
 ### Python (pandas)
 - **Environment**: Jupyter Notebook
@@ -149,7 +149,7 @@ Food_Access_Nutrition_Equity/
 - **Techniques**: Power Query, VLOOKUP, Pivot Tables, Data Validation
 - **Output Format**: XLSX workbooks with multiple sheets
 
-## Key Wrangling Challenges Addressed
+## 🎨 Key Wrangling Challenges Addressed
 
 1. **Wide Dataset Reduction**: Reduced 228 total columns to 30 core columns (86.8% reduction)
 2. **Geographic Mapping**: Successfully mapped census tracts to counties for Texas
@@ -158,7 +158,7 @@ Food_Access_Nutrition_Equity/
 5. **Food Categorization**: Created logical groupings for 7,000+ food items
 6. **Unit Harmonization**: Documented and standardized nutritional measurements
 
-## Results Summary
+## 🌍 Results Summary
 
 - **Final Datasets**: 3 clean, analysis-ready datasets
 - **Texas Focus**: 254 counties analyzed
@@ -166,7 +166,7 @@ Food_Access_Nutrition_Equity/
 - **Dimension Reduction**: From 228 to 30 columns while preserving analytical value
 - **Visualizations**: 5 research question charts generated
 
-## Technical Requirements
+## 🤝 Technical Requirements
 
 ### Python
 ```bash
@@ -184,7 +184,7 @@ install.packages(c("tidyverse", "readr", "haven"))
 ### Excel
 - Microsoft Excel 2016+ with Power Query
 
-## Usage Instructions
+## 📝 Usage Instructions
 
 1. **Clone the repository**
    ```bash
@@ -200,14 +200,14 @@ install.packages(c("tidyverse", "readr", "haven"))
    - SQL: Execute `food_access_queries.sql`
    - Excel: Follow `excel_workflow.md`
 
-## Key Findings
+## 📚 Key Findings
 
 - **Weak Correlation**: Poverty rates show surprisingly weak correlation (-0.073) with food access limitations in Texas counties
 - **Urban Advantage**: Urban counties consistently show better food accessibility metrics
 - **Education Impact**: Higher educational attainment strongly correlates with improved food access
 - **Nutritional Diversity**: Significant variation in nutritional profiles across food categories
 
-## Academic Context
+## 📢 Academic Context
 
 This project was completed as part of a data wrangling course, demonstrating proficiency in:
 - Multiple technical platforms
@@ -215,15 +215,15 @@ This project was completed as part of a data wrangling course, demonstrating pro
 - Reproducible research practices
 - Documentation and communication
 
-## Author
+## 📝 Author
 
 HandsomeChi
 
-## License
+## 📝 License
 
 This project is for academic purposes. Data sources retain their original licensing.
 
-## Acknowledgments
+## 📝 Acknowledgments
 
 - USDA for Food Access Research Atlas data
 - CORGIS project for curated datasets
