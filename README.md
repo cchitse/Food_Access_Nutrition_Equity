@@ -1,5 +1,3 @@
-# food_access_nutrition_equity
-
 # Food Access and Nutrition Equity Data Wrangling Project
 
 ## Project Overview
