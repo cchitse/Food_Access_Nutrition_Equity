@@ -217,7 +217,7 @@ This project was completed as part of a data wrangling course, demonstrating pro
 
 ## 📝 Author
 
-HandsomeChi
+cchitse
 
 ## 📝 License
 
@@ -229,7 +229,7 @@ This project is for academic purposes. Data sources retain their original licens
 - CORGIS project for curated datasets
 - Course instructors for methodology guidance
 
-## References
+## 📝 References
 
 1. USDA Economic Research Service. (2023). Food Access Research Atlas.
 2. CORGIS Dataset Project. County Demographics and Food Nutrition datasets.
@@ -237,4 +237,4 @@ This project is for academic purposes. Data sources retain their original licens
 
 ---
 
-*Last Updated: November 2025*
+*Last Updated: November 18, 2025*
