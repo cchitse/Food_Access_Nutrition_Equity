@@ -1,5 +1,9 @@
 # Food Access and Nutrition Equity Data Wrangling Project
 
+This project investigates food accessibility, nutritional quality, and socioeconomic disparities across counties in the state of Texas. It demonstrates robust data wrangling techniques by implementing a complete data pipeline across four technical platforms: Python (pandas), R (tidyverse), SQL, and Excel.
+
+The primary objective is to construct a reproducible, modular data wrangling workflow that transforms messy, real-world datasets into clean, analysis-ready outputs suitable for investigating food access inequities.
+
 <div align="center">
 
 ![MIT License](https://img.shields.io/badge/license-MIT-yellow.svg)
@@ -10,10 +14,6 @@
 ![Windows](https://img.shields.io/badge/Windows-10+-0078D6.svg?logo=windows&logoColor=white)
 
 </div>
-
-This project investigates food accessibility, nutritional quality, and socioeconomic disparities across counties in the state of Texas. It demonstrates robust data wrangling techniques by implementing a complete data pipeline across four technical platforms: Python (pandas), R (tidyverse), SQL, and Excel.
-
-The primary objective is to construct a reproducible, modular data wrangling workflow that transforms messy, real-world datasets into clean, analysis-ready outputs suitable for investigating food access inequities.
 
 ## Research Questions
 
