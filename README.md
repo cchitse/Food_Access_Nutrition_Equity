@@ -13,11 +13,11 @@ The primary objective is to construct a reproducible data wrangling workflow tha
 <div align="center">
 
 ![MIT License](https://img.shields.io/badge/license-MIT-yellow.svg)
-[![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/release/python-380/)
-![SQL](https://img.shields.io/badge/SQL-Database-CC2927.svg?logo=microsoftsqlserver&logoColor=white)
-![R](https://img.shields.io/badge/R-4.0+-276DC3.svg?logo=r&logoColor=white)
-![Excel](https://img.shields.io/badge/Excel-2016+-217346.svg?logo=microsoftexcel&logoColor=white)
-![Windows](https://img.shields.io/badge/Windows-10+-0078D6.svg?logo=windows&logoColor=white)
+[![Python 3.8](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/release/python-380/)
+[![SQL](https://img.shields.io/badge/SQL-Database-CC2927.svg?logo=microsoftsqlserver&logoColor=white)](https://www.mysql.com/)
+[![R 4.0](https://img.shields.io/badge/R-4.0+-276DC3.svg?logo=r&logoColor=white)](https://www.r-project.org/)
+[![Excel 2016](https://img.shields.io/badge/Excel-2016+-217346.svg?logo=microsoftexcel&logoColor=white)](https://www.microsoft.com/en/microsoft-365/excel?market=af)
+[![Windows 10](https://img.shields.io/badge/Windows-10+-0078D6.svg?logo=windows&logoColor=white)](https://www.microsoft.com/en-us/software-download/windows10)
 
 </div>
 
