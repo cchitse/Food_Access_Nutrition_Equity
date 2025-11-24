@@ -1,6 +1,6 @@
 ---
-title: "Food Access & Nutrition Equity in Texas - Python pandas"
-subtitle: "Data Wrangling - Project Workflow and Report (Pairs)"
+title: "Food Access & Nutrition Equity in Texas"
+subtitle: "Python pandas - Project Workflow and Report"
 date: today
 author: 
   - Chi-Tse Chiang(cc79734)
@@ -27,7 +27,7 @@ The resulting clean dataset enables exploration of how food accessibility in Tex
 
 # Data Sources
 
-## USDA Food Access Research Atlas
+## USDA Fodd Access Research Atlas
 
 **Source**: [USDA Data Products](https://www.ers.usda.gov/data-products/food-access-research-atlas)
 
@@ -128,7 +128,6 @@ We retain these 9 columns from the original 38 to create a focused nutritional p
 |Data.Vitamins.Vitamin A - RAE|Integer|Vitamin A content as Retinol Activity Equivalents|0 - 20,000+(mcg)|Rename to: VitaminA; high in orange vegetables, dairy, liver|
 |Data.Major Minerals.Calcium|Integer|Calcium content|0 - 2,000+(mg)|Rename to: Calcium; high in dairy, leafy greens, fortified foods|
 
-# Wrangling Process
 
 # Step 1 : Data Loading
 
@@ -460,8 +459,7 @@ Because we drop a NULL value in county_demographics dataset, so the counties wou
 
 
 # Step 4 : Data Transformation
-## Step 4.1 : Calculate Derived Metrics (USDA Atlas)
-## Step 4.2 : Categorize Nutrition (Food Nutrition) 
+
 
 We now have:
 * usda_texas_cleaned - cleaned USDA data with standardized State
@@ -708,9 +706,6 @@ food_nutrition_final.head()
 
 
 # Step 5 : Data Aggregation
-## Step 5.1: Aggregate USDA Atlas to County Level
-## Step 5.2 : Calculate Weighted Average Poverty Rate
-## Step 5.3 : Add Derived Percentage Metrics to County Aggregation
 
 We now have:
 - usda_with_metrics - USDA data with two new columns (pct_lowaccess-> tracts have low access , pct_lowincomelowaccess -> low income with low access)
@@ -829,7 +824,6 @@ Using the .assign() method with lambda functions, we calculated three key percen
 2. Pct_LowIncome_LowAccess: The percentage of low-income residents who also face low food access
 3. Pct_Urban: The percentage of census tracts in the county classified as urban
 
-We then merged these derived metrics with the weighted poverty rate calculated in Step 5.2, creating a comprehensive county-level dataset.
 
 ```{python}
 print("Derived metrics added.")
