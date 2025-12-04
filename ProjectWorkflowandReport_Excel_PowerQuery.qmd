@@ -617,4 +617,4 @@ Throughout this project, we learned that data wrangling in Excel isn't about man
 
 # Description of tool learning 
 
-
+We learned Power Query as a powerful ETL (Extract, Transform, Load) tool for handling data without writing code. We started by exploring the "Get Data" ribbon to import massive CSV files. A significant lesson was learning how to handle datasets that exceed Excel's row limit. We searched for solutions and discovered how to load data as a "Connection Only" rather than loading it directly into the worksheet. Furthermore, We learned how to transform data structures by exploring the "Transform" tab, specifically finding and applying the Unpivot function to normalize the food nutrition dataset. This tool proved handy for initial data inspection and structural cleaning before detailed analysis.

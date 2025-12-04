@@ -928,6 +928,4 @@ Throughout this project, we learned that data wrangling excellence isn't about t
 
 # Description of tool learning 
 
-
-
-
+We learned the Tidyverse, especially focusing on the pipe operator (%>%) for chaining data transformation steps. We referred to the package documentation to understand the difference between inner_join and other join types to ensure we didn't lose county data during merging. A key learning moment was converting "wide" nutrition data into a "long" format. We explored the tidyr documentation to implement ```pivot_longer()```, which was crucial for categorizing nutrients. Additionally, we learned ggplot2 for visualization. We searched the internet for guidance on adding linear regression layers (geom_smooth) and customizing axis labels, which allowed me to create clear, publication-ready charts comparing income and food access.

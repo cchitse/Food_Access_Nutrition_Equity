@@ -1028,6 +1028,4 @@ Throughout this project, we learned that data wrangling excellence isn't about t
 
 # Description of tool learning 
 
-
-
-
+First, we learned to use the Pandas library by reviewing course materials on DataFrame manipulation. Once we understood the basics of data structures, we explored the Pandas documentation to master merging datasets using ```pd.merge()``` and handling missing values. A specific challenge we encountered was calculating the weighted average for poverty rates across census tracts, we learned from course materials how to use the ```.assign()``` function with lambda expressions to perform these complex row-wise calculations efficiently. Second, we learned to visualize data using Matplotlib. We consulted the documentation to understand how to create scatter plots and searched on Q&A platforms to find out how to overlay a trend line (np.polyfit) to effectively communicate the correlation between poverty and food access. These tools were essential for the analysis of the project.
