@@ -1,0 +1,1329 @@
+---
+title: "Food Access & Nutrition Equity in Texas - SQL"
+subtitle: "Data Wrangling - Project Workflow and Report (Pairs)"
+date: today
+author: 
+  - Chi-Tse Chiang(cc79734)
+  - Cian-Rong Chen(cc79648)
+format:
+  html:
+    toc: true
+    embed-resources: true
+    number-sections: true
+mainfont: TeX Gyre Schola
+monofont: JetBrainsMono Nerd Font
+mathfont: TeX Gyre Schola Math
+---
+
+# Summary
+
+This project aims to develop a data wrangling pipeline that integrates three datasets related to **food access**, **nutritional quality**, and **socioeconomic disparities** in Texas. Using data from the ***USDA Food Access Research Atlas***, ***CORGIS County Demographics dataset***, and ***CORGIS Food Nutrition*** dataset. The pipeline is implemented across four technical environments:
+
+- Python with Pandas
+- R with tidyverse
+- SQL
+- Excel
+
+The resulting clean dataset enables exploration of how food accessibility in Texas intersects with nutritional availability and demographic factors such as poverty or race/ethnicity. This work emphasizes the technical process of data wrangling and reproducible pipeline development, providing a foundation for future research into food security and health equity disparities across Texas communities.
+
+# Data Sources
+
+## USDA Food Access Research Atlas
+
+**Source**: [USDA Data Products](https://www.ers.usda.gov/data-products/food-access-research-atlas)
+
+![](FoodAccessResearchAtlas_datasource.png)
+[72535rows x 147 columns]
+
+Provides census-tract-level indicators of supermarket accessibility and food access challenges for different demographic groups. Includes population, housing, income, race, SNAP benefits, and geographic accessibility measures (e.g., low-income populations living >1 mile from a grocery store).
+
+**Wrangling Issues**:
+
+- Very wide (147 columns) and long (72,000+ rows) dataset requiring subsetting to 10–15 meaningful columns
+- Needs standardization of county and state names for **merging**.
+- Requires treatment of missing or 0 placeholder values
+- Census tract-level data must be aggregated to county level to match other datasets
+
+## U.S. County Demographics(From 2010s)
+
+**Source**: [CORGIS Dataset Project, County Demographics](https://corgis-edu.github.io/corgis/csv/county_demographics/)
+
+![](County_demographics.png)
+[3140rows x 43 columns]
+
+County-level data from 2010–2019 across the U.S., including age distribution, education, employment, ethnicity, household income, housing characteristics, and health-related statistics like travel time and veteran status.
+
+**Wrangling Issues**:
+
+- **Filtering** to only Texas counties from national dataset.
+- **Missing values** encoded as -1 need identification and handling.
+- Long dot-separated column names (e.g., Ethnicities.White Alone) require **renaming** and flattening for usability.
+- County and state name standardization needed to **match** with USDA Food Access Atlas
+
+## USDA Food Composition 
+
+**Source**: [CORGIS Dataset Project, Food](https://corgis-edu.github.io/corgis/csv/food/)
+
+![](Food_datasource.png)
+[7084rows x 38columns] 
+
+Contains nutritional breakdowns of thousands of foods, with fields for macronutrients (protein, fat, carbohydrates), vitamins (A, C, B12, etc.), and minerals (calcium, iron, magnesium). Each row represents a distinct food item.
+
+**Wrangling Issues**:
+
+- Contains 60+ nutrient columns requiring reduction to 5–10 most relevant variables.
+- Food names contain **formatting synonyms** (e.g., "Milk, human" vs "Human milk") requiring text standardization.
+- **Grouping** by food type (e.g., "Dairy", "Meat", "Vegetables") for analysis.
+- Measurements use different units (grams, mg, mcg) that must be documented for proper interpretation.
+
+
+# Selected Columns
+
+## USDA Food Access Research Atlas (10 columns)
+
+We retain these 11 columns from the original 147 to capture essential food access metrics while eliminating redundancy. The selected variables focus on the standard 1-mile threshold for urban areas and 10-mile threshold for rural areas, as this represents the USDA's primary food desert definition. We keep only the two largest racial/ethnic minority groups in Texas (Black and Hispanic populations) to enable disparity analysis without excessive granularity. Geographic identifiers are essential for merging datasets, while population totals serve as denominators for calculating meaningful access percentages at both tract and county levels.
+
+|Column Name |Data Type|Description|Example|Notes|
+|-----------------|------------|------------------------------|---------------------|----------------------------------|
+|State|String|State name|"Texas"|Use for filtering; standardize to "TX" for merging|
+|County|String|County name|"Harris County"|May need suffix standardization, merge key with Demographics|
+|Urban|Integer (Binary)|Flag indicating if tract is urban (1) or rural (0)|0, 1|Based on Census Bureau urban area definitions; use for urban/rural analysis|
+|PovertyRate|Float|Percentage of tract population living at or below federal poverty threshold|0.0 - 100.0 (typically 5-40)|Decimal format (e.g., 15.3 = 15.3%)|
+|Pop2010|Integer|Total population count from 2010 Census|1,500 - 8,000 (typical tract)|Denominator for all percentage calculations; validate against Demographics dataset|
+|TractLOWI|Integer|Total count of low-income population in tract|0 - 5,000|Denominator for low-income disparity calculations; low-income defined as ≤200% of poverty line|
+|lapop1|Integer|Population count beyond 1 mile from supermarket|0 - 6,000|Use to calculate PercentLowAccess = (lapop1/Pop2010)*100; primary food access indicator|
+|lalowi1|Integer|Low income population count beyond 1 mile from supermarket|0 - 4,000|Use to calculate PercentLowIncomeLowAccess = (lalowi1/TractLOWI)*100; measures vulnerable population access|
+|lablack1|Integer|Black/African American population count with low access|0 - 3,000|Numerator for Black disparity ratio; compare to county-level PercentBlack|
+|lahisp1|Integer|Hispanic/Latino population count with low access|0 - 4,000|Numerator for Hispanic disparity ratio; compare to county-level PercentHispanic|
+
+## U.S. County Demographics (10 columns)
+
+We select these 10 columns from the original 43 to provide socioeconomic context for food access patterns without overwhelming the analysis. The focus is on variables directly relevant to our research questions: income and education as economic indicators, age structure to identify vulnerable populations, and detailed racial/ethnic composition to enable disparity calculations. We exclude employment, housing, and business ownership variables as they are less directly related to food access outcomes. The 2010 population figures align temporally with the USDA food access data for valid comparisons.
+
+|Column Name |Data Type|Description|Example|Notes|
+|----------------------|--------------|--------------------------------------------|--------------|-----------------------------|
+|County|String|County name|"Harris County"|Merge key with USDA, need to add/remove "County" suffix for consistency|
+|State|String|State abbreviation or name|"TX" or "Texas"|Standardize to match USDA format ("TX" recommended)|
+|Population.2010 Population|Integer|County population from 2010 Census|825 - 4,000,000|Rename to: Population2010|
+|Population.Population per Square Mile|Float|Population density|1.5 - 3,000+|Rename to: PopDensity|
+|Income.Median Houseold Income|Integer|Median household income (2015-2019 ACS)|$30,000 - $100,000+|Rename to: MedianIncome|
+|Education.Bachelor's Degree or Higher|Float|Percentage of adults 25+ with bachelor's degree or higher (2015-2019 ACS)|8.0 - 60.0|Rename to: BachelorsDegreeRate|
+|Age.Percent Under 18 Years|Float|Percentage of population under age 18|15.0 - 35.0|Rename to: PercentUnder18|
+|Ethnicities.Black Alone|Float|Percentage of population identifying as Black/African American alone|0.5 - 50.0|Rename to: PercentBlack|
+|Ethnicities.Hispanic or Latino|Float|Percentage of population identifying as Hispanic/Latino (any race)|5.0 - 95.0|Rename to: PercentHispanic, key disparity metric|
+|Ethnicities.White Alone|Float|Percentage of population identifying as White alone|10.0 - 90.0|Rename to: PercentWhite|
+
+
+## USDA Food Composition (9 columns)
+
+We retain these 9 columns from the original 38 to create a focused nutritional profile without excessive micronutrient detail. The selection emphasizes macronutrients that define food quality—protein for satiety, fiber as a health indicator, and sugar as a marker of processed foods. We keep only two micronutrients (Vitamin A and calcium) as they are most commonly deficient in food desert populations and represent broader nutritional adequacy. This streamlined approach enables clear categorization of "nutrient-dense" versus "empty calorie" foods while avoiding the analytical complexity of tracking dozens of vitamins and minerals.
+
+|Column Name |Data Type|Description|Example|Notes|
+|------------------|--------|--------------------------------------------|--------------|------------------------------|
+|Category|String|General food category assigned by USDA|"Milk", "Beef Product"| Use for grouping in nutrition|
+|Description|String|Full description of food item|"Milk, whole, 3.25% milkfat"|May contain formatting inconsistencies|
+|Data.Protein|Float|Protein content|0.0 - 90.0(g)|Rename to: Protein; high values in meat, fish, legumes| |Data.Carbohydrate|Float|Total carbohydrate content (by difference)|0.0 - 100.0(g)|Rename to: Carbohydrate; high in grains, fruits, sugars|
+|Data.Fiber|Float|Dietary fiber content|0.0 - 40.0(g)|Rename to: Fiber; quality indicator|
+|Data.Sugar Total|Float|Total sugar content|0.0 - 100.0(g)|Rename to: SugarTotal; quality indicator; high = worse (candies, sodas)|
+|Data.Fat.Total Lipid|Float|Total fat content|0.0 - 100.0(g)|Rename to: TotalFat; high in oils, nuts, fatty meats|
+|Data.Vitamins.Vitamin A - RAE|Integer|Vitamin A content as Retinol Activity Equivalents|0 - 20,000+(mcg)|Rename to: VitaminA; high in orange vegetables, dairy, liver|
+|Data.Major Minerals.Calcium|Integer|Calcium content|0 - 2,000+(mg)|Rename to: Calcium; high in dairy, leafy greens, fortified foods|
+
+# Wrangling Process
+
+```{r}
+library(DBI)
+library(duckdb)
+
+# 建立 DuckDB driver 和連線物件
+drv <- duckdb()
+con <- dbConnect(drv)
+
+# 如果你有 CSV 檔案想匯入當成資料表，也可以加這行：
+# dbExecute(con, "CREATE TABLE my_table AS SELECT * FROM read_csv_auto('my_data.csv')")
+```
+
+# Data Loading
+
+Because this dataset uses "NULL" to represent missing values, we need to explicitly tell DuckDB that "NULL" means null.
+Otherwise, it will try to read "NULL" as a string into numeric columns and fail.
+Adding nullstr='NULL' solves this problem and ensures the table is loaded correctly.
+
+```{r}
+library(duckdb)
+library(DBI)
+
+# 建立連線
+con <- dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+
+# 載入原始 CSV 並確保欄位保留
+county_demographics <- read.csv("county_demographics.csv")
+
+# 載入進 DuckDB
+dbWriteTable(con, "county_demographics", county_demographics)
+```
+
+```{sql connection=con}
+CREATE TABLE usda_atlas AS
+SELECT *
+FROM read_csv_auto(
+  'FoodAccessResearchAltas.csv',
+  nullstr='NULL'
+);
+```
+```{sql connection=con}
+CREATE OR REPLACE TABLE county_demographics AS
+SELECT *
+FROM read_csv_auto(
+  'county_demographics.csv',
+  nullstr='NULL'
+);
+```
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition AS
+SELECT *
+FROM read_csv_auto(
+  'food.csv',
+  nullstr='NULL'
+);
+```
+
+View table dimensions using COUNT queries
+
+```{sql connection=con}
+SELECT 
+  'usda_atlas' AS table_name,
+  (SELECT COUNT(*) FROM usda_atlas) AS row_count,
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'usda_atlas') AS column_count
+UNION ALL
+SELECT 
+  'county_demographics',
+  (SELECT COUNT(*) FROM county_demographics),
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'county_demographics')
+UNION ALL
+SELECT 
+  'food_nutrition',
+  (SELECT COUNT(*) FROM food_nutrition),
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'food_nutrition');
+```
+
+## Standardize State Names in `usda_atlas`
+
+This query cleans and standardizes inconsistent state name values  
+(e.g., "TX", "texas", "TEXAS") into a unified Title Case format ("Texas").  
+
+We use SQL's `CASE WHEN ... THEN` logic to remap different variations into consistent values.  
+To avoid column duplication, we use DuckDB’s `* EXCLUDE State` to **exclude the original `State` column**  
+and replace it with our newly standardized version.
+
+This is important because if we keep both the original and the new `State` column in the result,  
+we may end up with conflicting or ambiguous field names — especially when selecting or joining tables later.  
+Using `* EXCLUDE State` ensures we cleanly overwrite the old values without accidentally introducing redundancy or confusion in downstream analysis.
+
+standardize variations of state names to Title Case
+
+```{sql connection=con}
+-- We standardize variations of state names to Title Case
+CREATE OR REPLACE TABLE usda_atlas AS
+SELECT
+  CASE
+    WHEN State IN ('TX','texas','TEXAS','Texas') THEN 'Texas'
+    WHEN State IN ('CA','california','CALIFORNIA','California') THEN 'California'
+    WHEN State IN ('NY','new york','NEW YORK','New york') THEN 'New York'
+    ELSE State
+  END AS State,
+  * EXCLUDE State
+FROM usda_atlas;
+```
+
+Standardize variations of state names to Title Case in county_demographics
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE county_demographics AS
+SELECT
+  CASE
+    WHEN State IN ('TX','texas','TEXAS','Texas') THEN 'Texas'
+    WHEN State IN ('CA','california','CALIFORNIA','California') THEN 'California'
+    WHEN State IN ('NY','new york','NEW YORK','New york') THEN 'New York'
+    ELSE State
+  END AS State,
+  * EXCLUDE State
+FROM county_demographics;
+```
+
+## Data Filter
+
+First filter for the 3 states of interest
+```{sql connection=con}
+-- Select all rows from the usda_atlas table where the State is either Texas, California, or New York
+SELECT *
+FROM usda_atlas
+WHERE State IN ('Texas', 'California', 'New York');
+
+-- Select all rows from the county_demographics table where the State is either Texas, California, or New York
+SELECT *
+FROM county_demographics
+WHERE State IN ('Texas', 'California', 'New York');
+
+```
+
+We successfully standardize state names and store rows only contains these three state.
+
+```{sql connection=con}
+-- Count the number of unique states in the usda_atlas table
+SELECT COUNT(DISTINCT State) AS unique_states_count
+FROM usda_atlas;
+
+-- Count the number of unique states in the county_demographics table
+SELECT COUNT(DISTINCT State) AS unique_states_count
+FROM county_demographics;
+```
+
+Texas Filtering (Rows). Now let's filter for Texas data only.
+
+**Filter USDA Atlas for Texas**
+
+```{sql connection=con}
+-- Filter rows where the State is Texas
+DROP TABLE IF EXISTS usda_texas;
+
+CREATE TABLE usda_texas AS
+SELECT *
+FROM usda_atlas
+WHERE State = 'Texas';
+
+
+-- Count how many rows have State = 'Texas'
+SELECT COUNT(*) AS texas_tracts
+FROM usda_texas
+WHERE State = 'Texas';
+
+-- Preview the first few rows of Texas data
+SELECT *
+FROM usda_texas
+LIMIT 5;
+
+```
+
+**Filter County Demographics for Texas**
+
+```{sql connection=con}
+-- Count the number of unique counties in Texas (where State = 'TX')
+SELECT COUNT(DISTINCT County) AS texas_counties
+FROM county_demographics
+WHERE State = 'TX';
+
+```
+
+**Keep all Food Nutrition data (not geographically specific)**
+
+# Columns Filtering
+
+We now have:
+- usda_texas - usda data in Texas
+- county_demographics_texas - counties data in Texas
+- food_nutrition - original(cleaned)
+
+## Select Essential Columns -> filter()
+
+Now let's subset to only the essential columns needed for analysis.
+
+### USDA Food Access Atlas (10 columns)
+
+* **PovertyRate** : Percentage of tract population living at or below federal poverty threshold
+* **lapop1** : Population count beyond 1 mile from supermarket
+* **lalowi1** : Low income population count beyond 1 mile from supermarket
+* **lablack1** : Black/African American population count with low access
+* **lahisp1** : Hispanic/Latino population count with low access
+* **TractLOWI** : Total count of low-income population in tract
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_texas_subset AS
+SELECT 
+  State, 
+  County, 
+  Urban, 
+  PovertyRate, 
+  Pop2010, 
+  lapop1, 
+  lalowi1, 
+  lablack1, 
+  lahisp1, 
+  TractLOWI
+FROM usda_texas;
+
+```
+
+Verify dimensions
+
+```{sql connection=con}
+SELECT 
+  'USDA subset shape' AS table_name, 
+  (SELECT COUNT(*) FROM usda_texas_subset) AS row_count, 
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'usda_texas_subset') AS column_count
+
+```
+
+### County Demographics (10 columns)
+
+* **Income.Median Houseold Income** :
+
+This includes the income of the householder and all other individuals 15 years old and over in the household whether they are related to the householder or not. Because many households consist of only one person average household income is usually less than average family income.
+
+* **Population.Population per Square Mile** : Population density
+
+```{sql connection=con}
+CREATE TABLE county_demographics_subset AS
+SELECT 
+  County, 
+  State,
+  "Population.2010 Population",
+  "Income.Median Houseold Income",          
+  "Education.Bachelor's Degree or Higher",
+  "Age.Percent Under 18 Years",
+  "Ethnicities.Black Alone",
+  "Ethnicities.Hispanic or Latino",
+  "Ethnicities.White Alone",
+  "Population.Population per Square Mile"
+FROM county_demographics
+WHERE State = 'Texas';
+```
+
+Verify dimensions
+
+```{sql connection=con}
+SELECT 
+  'Demographics subset shape:' AS table_name, 
+  (SELECT COUNT(*) FROM county_demographics_subset) AS row_count, 
+  (SELECT COUNT(*) FROM information_schema.columns 
+   WHERE table_name = 'county_demographics_subset') AS column_count;
+
+```
+
+### Food Nutrition (9 columns)
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition_subset AS
+SELECT 
+  Category, 
+  Description,
+  "Data.Protein",
+  "Data.Carbohydrate",
+  "Data.Fiber",
+  "Data.Sugar Total",
+  "Data.Fat.Total Lipid",
+  "Data.Vitamins.Vitamin A - RAE",
+  "Data.Major Minerals.Calcium"
+FROM food_nutrition;
+```
+
+```{sql connection=con}
+SELECT 
+  'Food subset shape:' AS table_name, 
+  (SELECT COUNT(*) FROM food_nutrition_subset) AS row_count, 
+  (SELECT COUNT(*) FROM information_schema.columns 
+   WHERE table_name = 'food_nutrition_subset') AS column_count;
+
+```
+
+### Preview the data
+```{sql connection=con}
+-- Preview first few rows of USDA Texas subset
+SELECT *
+FROM usda_texas_subset
+LIMIT 5;
+
+-- Preview first few rows of County Demographics subset
+SELECT *
+FROM county_demographics_subset
+LIMIT 5;
+
+-- Preview first few rows of Food Nutrition subset
+SELECT *
+FROM food_nutrition_subset
+LIMIT 5;
+
+```
+
+# Data Cleaning
+
+We now have:
+- usda_texas_subset - usda data filter 10 columns
+- county_demographics_subset - counties data filter 10 columns
+- food_nutrition_subset - food nutrition data filter 9 columns
+
+## Handle Missing Values
+
+### usda_texas_subset
+
+First, let's check for missing values in the USDA Atlas: 
+
+We should understand why drop this NULL and explain why need to drop
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_texas_cleaned AS
+SELECT *
+FROM usda_texas_subset
+WHERE row(State, County, Urban, PovertyRate, Pop2010,
+          lapop1, lalowi1, lablack1, lahisp1, TractLOWI) IS NOT NULL;
+
+```
+
+Verification
+
+```{sql connection=con}
+SELECT 
+  'usda_texas_subset' AS table_name,
+  (SELECT COUNT(*) FROM usda_texas_subset) AS row_count,
+  NULL AS rows_removed
+
+UNION ALL
+
+SELECT 
+  'usda_texas_cleaned' AS table_name,
+  (SELECT COUNT(*) FROM usda_texas_cleaned) AS row_count,
+  NULL
+
+UNION ALL
+
+SELECT 
+  'rows_removed (subset - cleaned)' AS table_name,
+  (SELECT COUNT(*) FROM usda_texas_subset) - 
+  (SELECT COUNT(*) FROM usda_texas_cleaned) AS row_count,
+  NULL;
+
+
+```
+
+Why? Paste it actually have NULL in it
+
+We force the population columns to be numeric first. If they contain strings like "NULL", this will turn them into NA, then drop_na() will successfully remove them.
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_texas_cleaned AS
+SELECT *
+FROM (
+  SELECT 
+    State,
+    County,
+    Urban,
+    PovertyRate,
+    Pop2010,
+    TRY_CAST(lapop1 AS DOUBLE) AS lapop1,
+    TRY_CAST(lalowi1 AS DOUBLE) AS lalowi1,
+    TRY_CAST(lablack1 AS DOUBLE) AS lablack1,
+    TRY_CAST(lahisp1 AS DOUBLE) AS lahisp1,
+    TractLOWI
+  FROM usda_texas_subset
+)
+WHERE 
+  lapop1 IS NOT NULL AND
+  lalowi1 IS NOT NULL AND
+  lablack1 IS NOT NULL AND
+  lahisp1 IS NOT NULL;
+```
+
+**Check for zeros in key columns (zeros are valid - they mean "no population beyond threshold"):**
+
+```{sql connection=con}
+SELECT 
+  'Pop2010 = 0' AS condition,
+  COUNT(*) AS zero_count
+FROM usda_texas_cleaned
+WHERE Pop2010 = 0
+
+UNION ALL
+
+SELECT 
+  'TractLOWI = 0',
+  COUNT(*)
+FROM usda_texas_cleaned
+WHERE TractLOWI = 0;
+
+```
+
+### county_demographics_subset
+
+County Demographics - Check for -1 to NULL, then Remove:
+Why We Use NULLIF(..., -1) and WHERE col != -1:
+We use NULLIF(column, -1) to treat -1 values as missing, and then use WHERE column != -1 to filter out any row with such missing values. This mimics R's behavior of converting -1 to NA and then using drop_na() to exclude them. The result is a cleaner and more reliable dataset for downstream analysis.
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE county_demographics_cleaned AS
+SELECT 
+  County,
+  State,
+  NULLIF("Population.2010 Population", -1) AS "Population.2010 Population",
+  NULLIF("Income.Median Houseold Income", -1) AS "Income.Median Houseold Income",
+  NULLIF("Education.Bachelor's Degree or Higher", -1) AS "Education.Bachelor's Degree or Higher",
+  NULLIF("Age.Percent Under 18 Years", -1) AS "Age.Percent Under 18 Years",
+  NULLIF("Ethnicities.Black Alone", -1) AS "Ethnicities.Black Alone",
+  NULLIF("Ethnicities.Hispanic or Latino", -1) AS "Ethnicities.Hispanic or Latino",
+  NULLIF("Ethnicities.White Alone", -1) AS "Ethnicities.White Alone",
+  NULLIF("Population.Population per Square Mile", -1) AS "Population.Population per Square Mile"
+FROM county_demographics_subset
+WHERE
+  "Population.2010 Population" != -1 AND
+  "Income.Median Houseold Income" != -1 AND
+  "Education.Bachelor's Degree or Higher" != -1 AND
+  "Age.Percent Under 18 Years" != -1 AND
+  "Ethnicities.Black Alone" != -1 AND
+  "Ethnicities.Hispanic or Latino" != -1 AND
+  "Ethnicities.White Alone" != -1 AND
+  "Population.Population per Square Mile" != -1;
+```
+
+```{sql connection=con}
+SELECT 
+  'Original Demographics rows' AS label,
+  COUNT(*) AS row_count
+FROM county_demographics_subset
+
+UNION ALL
+
+SELECT 
+  'Demographics rows after cleaning',
+  COUNT(*)
+FROM county_demographics_cleaned;
+
+```
+
+### food_nutrtion_subset
+
+Food Nutrition - Check and Remove NULL values:
+```{sql connection=con}
+SELECT
+  SUM(CASE WHEN "Data.Protein" IS NULL THEN 1 ELSE 0 END) +
+  SUM(CASE WHEN "Data.Carbohydrate" IS NULL THEN 1 ELSE 0 END) +
+  SUM(CASE WHEN "Data.Fiber" IS NULL THEN 1 ELSE 0 END) +
+  SUM(CASE WHEN "Data.Sugar Total" IS NULL THEN 1 ELSE 0 END) +
+  SUM(CASE WHEN "Data.Fat.Total Lipid" IS NULL THEN 1 ELSE 0 END) +
+  SUM(CASE WHEN "Data.Vitamins.Vitamin A - RAE" IS NULL THEN 1 ELSE 0 END) +
+  SUM(CASE WHEN "Data.Major Minerals.Calcium" IS NULL THEN 1 ELSE 0 END) AS total_nulls
+FROM food_nutrition_subset;
+
+```
+
+
+Since there's no missing value or NULL, we can just move to next step
+
+## Standardize Column Names
+
+Now we have three clean datasets with NO missing values:
+- usda_texas_cleaned
+- county_demographics_cleaned
+- food_nutrition_subset
+
+### County Demographics - Flatten dot notation -> county_demographics_renamed
+
+
+# Rename County Demographics columns
+We use PRAGMA table_info('table_name') to quickly check column names and structure of a table — like colnames() in R.
+
+It’s faster and cleaner than running SELECT *, because it just shows the metadata (not actual data). Perfect when renaming columns or debugging!
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE county_demographics_renamed AS
+SELECT
+  County,
+  State,
+  "Population.2010 Population" AS Population2010,
+  "Income.Median Houseold Income" AS MedianIncome,
+  "Education.Bachelor's Degree or Higher" AS Pct_BachelorsOrHigher,
+  "Age.Percent Under 18 Years" AS Pct_Under18,
+  "Ethnicities.Black Alone" AS Pct_Black,
+  "Ethnicities.Hispanic or Latino" AS Pct_Hispanic,
+  "Ethnicities.White Alone" AS Pct_White,
+  "Population.Population per Square Mile" AS PopDensity
+FROM county_demographics_cleaned;
+```
+```{sql connection=con}
+SELECT name
+FROM pragma_table_info('county_demographics_renamed');
+
+```
+
+### Food Nutrition - Simplify nested names -> food_nutrtion_renamed
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition_renamed AS
+SELECT
+  Category,
+  Description,
+  "Data.Protein" AS Protein,
+  "Data.Carbohydrate" AS Carbohydrate,
+  "Data.Fiber" AS Fiber,
+  "Data.Sugar Total" AS SugarTotal,
+  "Data.Fat.Total Lipid" AS TotalFat,
+  "Data.Vitamins.Vitamin A - RAE" AS VitaminA,
+  "Data.Major Minerals.Calcium" AS Calcium
+FROM food_nutrition_subset;
+
+```
+```{sql connection=con}
+SELECT 
+  'Renamed Food Columns:' AS label,
+  name AS column_name
+FROM pragma_table_info('food_nutrition_renamed');
+```
+
+## Verify Geographic Names
+
+### Count unique counties to ensure we have the expected number (approx 254 for Texas)
+
+```{sql connection=con}
+SELECT 'Unique counties in USDA' AS label, COUNT(DISTINCT County) AS unique_count
+FROM usda_texas_cleaned
+
+UNION ALL
+
+SELECT 'Unique counties in Demographics', COUNT(DISTINCT County)
+FROM county_demographics_renamed;
+
+```
+
+Because we drop a NULL value in county_demographics dataset, so the counties would one less than USDA.
+
+# Data Transformation
+
+We now have:
+* usda_texas_cleaned - cleaned USDA data with standardized State
+* county_demographics_renamed - cleaned demographics with renamed columns
+* food_nutrition_renamed - cleaned food data with renamed columns
+
+## Calculate Derived Metrics (USDA Atlas)
+
+### Calculate PercentLowAccess (% of tract population >1 mile from supermarket)
+
+What percentage of the tract's total population lives more than 1 mile from a supermarket?
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_with_metrics AS
+SELECT *,
+       (lapop1 * 100.0) / NULLIF(Pop2010, 0) AS PercentLowAccess
+FROM usda_texas_cleaned;
+
+```
+
+```{sql connection=con}
+SELECT County, Pop2010, lapop1, PercentLowAccess
+FROM usda_with_metrics
+LIMIT 5;
+
+```
+
+Example:
+
+* Census Tract A has POP2010 = 5,000 people total
+* lapop1 = 1,500 people live >1 mile from supermarket
+* PercentLowAccess = (1,500 / 5,000) × 100 = 30%
+* Interpretation: 30% of this tract's population has low access to food
+
+### PercentLowIncomeLowAccess (% of low-income population with low access)
+
+What it means: Among the low-income population in this tract, what percentage also has low food access?
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_with_metrics AS
+SELECT *,
+       (lalowi1 * 100.0) / NULLIF(TractLOWI, 0) AS PercentLowIncomeLowAccess
+FROM usda_with_metrics;
+
+```
+
+```{sql connection=con}
+SELECT 
+  County, 
+  TractLOWI, 
+  lalowi1, 
+  PercentLowIncomeLowAccess
+FROM usda_with_metrics
+LIMIT 5;
+
+```
+
+Example:
+* Census Tract B has TractLOWI = 2,000 low-income people
+* lalowi1 = 800 low-income people with low access
+* PercentLowIncomeLowAccess = (800 / 2,000) × 100 = 40%
+* Interpretation: 40% of low-income residents have low food access
+
+**Why These Calculations Matter**
+Without percentages (raw counts only):
+
+* Tract 1: 1,000 people with low access (sounds bad)
+* Tract 2: 500 people with low access (sounds better)
+
+**BUT if we look at percentages**
+
+* Tract 1: 1,000 out of 10,000 = 10% low access (not too bad)
+* Tract 2: 500 out of 1,000 = 50% low access (much worse!)
+
+Percentages allow fair comparisons between large urban tracts and small rural tracts.
+
+### Verify New Columns
+```{sql connection=con}
+PRAGMA table_info('usda_with_metrics');
+
+```
+
+## Categorize Nutrition (Food Nutrition) 
+
+### Group by Category and Calculate Mean Nutritional Values
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition_grouped AS
+SELECT
+  Category,
+  AVG(Protein) AS Protein,
+  AVG(Carbohydrate) AS Carbohydrate,
+  AVG(Fiber) AS Fiber,
+  AVG(SugarTotal) AS SugarTotal,
+  AVG(TotalFat) AS TotalFat,
+  AVG(VitaminA) AS VitaminA,
+  AVG(Calcium) AS Calcium
+FROM food_nutrition_renamed
+GROUP BY Category;
+
+```
+
+### Wider/Longer
+
+We convert the individual nutrient columns into key-value pairs
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition_long AS
+SELECT Category, 'Protein' AS Nutrient, Protein AS MeanValue FROM food_nutrition_grouped
+UNION ALL
+SELECT Category, 'Carbohydrate', Carbohydrate FROM food_nutrition_grouped
+UNION ALL
+SELECT Category, 'Fiber', Fiber FROM food_nutrition_grouped
+UNION ALL
+SELECT Category, 'SugarTotal', SugarTotal FROM food_nutrition_grouped
+UNION ALL
+SELECT Category, 'TotalFat', TotalFat FROM food_nutrition_grouped
+UNION ALL
+SELECT Category, 'VitaminA', VitaminA FROM food_nutrition_grouped
+UNION ALL
+SELECT Category, 'Calcium', Calcium FROM food_nutrition_grouped;
+
+```
+```{sql connection=con}
+SELECT * FROM food_nutrition_long
+LIMIT 10;
+
+```
+
+We convert the long format back to wide format.
+
+* id_cols = Category identifies the rows
+* names_from = Nutrient gets the new column headers
+* values_from = MeanValue gets the cell values
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition_pivoted AS
+SELECT
+  Category,
+  MAX(CASE WHEN Nutrient = 'Protein' THEN MeanValue END) AS Protein,
+  MAX(CASE WHEN Nutrient = 'Carbohydrate' THEN MeanValue END) AS Carbohydrate,
+  MAX(CASE WHEN Nutrient = 'Fiber' THEN MeanValue END) AS Fiber,
+  MAX(CASE WHEN Nutrient = 'SugarTotal' THEN MeanValue END) AS SugarTotal,
+  MAX(CASE WHEN Nutrient = 'TotalFat' THEN MeanValue END) AS TotalFat,
+  MAX(CASE WHEN Nutrient = 'VitaminA' THEN MeanValue END) AS VitaminA,
+  MAX(CASE WHEN Nutrient = 'Calcium' THEN MeanValue END) AS Calcium
+FROM food_nutrition_long
+GROUP BY Category;
+```
+```{sql connection=con}
+SELECT * FROM food_nutrition_pivoted
+LIMIT 10;
+```
+
+### Categorize Nutritional Values
+
+[FDA Daily Value](https://www.fda.gov/food/nutrition-facts-label/daily-value-nutrition-and-supplement-facts-labels)
+
+#### SugarTotal
+
+High sugar intake is linked to health issues; categorizing helps identify high-sugar vs low-sugar foods.
+
+Thresholds:
+
+* High: > 15 grams (>25% of 50g daily max)
+* Medium: 5-15 grams
+* Low: < 5 grams
+
+#### TotalFat
+
+Important for understanding nutritional quality and health implications.
+
+Thresholds (per 100g serving):
+
+* High: > 20 grams
+* Medium: 5-20 grams
+* Low: < 5 grams
+
+#### Protein
+
+Helps identify protein-rich foods vs lower-protein options.
+
+Thresholds (per 100g serving):
+
+* High: > 15 grams (excellent protein source)
+* Medium: 5-15 grams
+* Low: < 5 grams
+
+#### Create Final Food_Nutrition dataset
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE food_nutrition_final AS
+SELECT
+  Category,
+  Calcium,
+  Carbohydrate,
+  Fiber,
+  VitaminA,
+  
+  -- Categorize Sugar Level
+  CASE 
+    WHEN SugarTotal > 15 THEN 'High'
+    WHEN SugarTotal >= 5 THEN 'Medium'
+    ELSE 'Low'
+  END AS Sugar_Level,
+
+  -- Categorize Fat Level
+  CASE 
+    WHEN TotalFat > 20 THEN 'High'
+    WHEN TotalFat >= 5 THEN 'Medium'
+    ELSE 'Low'
+  END AS Fat_Level,
+
+  -- Categorize Protein Level
+  CASE 
+    WHEN Protein > 15 THEN 'High'
+    WHEN Protein >= 5 THEN 'Medium'
+    ELSE 'Low'
+  END AS Protein_Level
+
+FROM food_nutrition_pivoted;
+
+```
+
+
+# Verification
+
+```{sql connection=con}
+SELECT COUNT(*) AS row_count FROM food_nutrition_final;
+
+SELECT * FROM food_nutrition_final
+LIMIT 5;
+
+```
+
+# Data Aggregation
+
+We now have:
+- usda_with_metrics - USDA data with two new columns (pct_lowaccess-> tracts have low access , pct_lowincomelowaccess -> low income with low access)
+- county_demographics_renamed - cleaned demographics with renamed columns
+- food_nutrition_final - final food nutrition data
+
+## Aggregate USDA Atlas to County Level
+```{sql connection=con}
+SELECT 'Number of tracts' AS label, COUNT(*) AS value
+FROM usda_with_metrics
+
+UNION ALL
+
+SELECT 'Number of unique counties' AS label, COUNT(DISTINCT County) AS value
+FROM usda_with_metrics;
+```
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_county_agg AS
+SELECT
+  County,
+  State,
+  SUM(Pop2010) AS TotalPopulation,
+  SUM(lapop1) AS TotalLowAccessPop,
+  SUM(TractLOWI) AS TotalLowIncomePop,
+  SUM(lalowi1) AS TotalLowIncomeLowAccessPop,
+  SUM(lablack1) AS TotalBlackLowAccess,
+  SUM(lahisp1) AS TotalHispanicLowAccess,
+  SUM(Urban) AS CountUrbanTracts,
+  COUNT(*) AS TotalTracts
+FROM usda_with_metrics
+GROUP BY County, State;
+```
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_county_agg AS
+SELECT
+  County,
+  State,
+  SUM(Pop2010) AS TotalPopulation,
+  SUM(lapop1) AS TotalLowAccessPop,
+  SUM(TractLOWI) AS TotalLowIncomePop,
+  SUM(lalowi1) AS TotalLowIncomeLowAccessPop,
+  SUM(lablack1) AS TotalBlackLowAccess,
+  SUM(lahisp1) AS TotalHispanicLowAccess,
+  SUM(Urban) AS CountUrbanTracts,
+  COUNT(*) AS TotalTracts
+FROM usda_with_metrics
+GROUP BY County, State;
+```
+```{sql connection=con}
+SELECT * FROM usda_county_agg
+LIMIT 5;
+```
+
+## Calculate Weighted Average Poverty Rate
+
+**Purpose**
+
+* Calculate a county-level poverty rate that accurately represents the entire county population by weighting each census tract's poverty rate by its population size.
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_weighted_prep AS
+SELECT *,
+  PovertyRate * Pop2010 AS PovertyWeighted,
+  Pop2010 AS PopWeight
+FROM usda_with_metrics;
+```
+```{sql connection=con}
+CREATE OR REPLACE TABLE poverty_weighted AS
+SELECT
+  County,
+  State,
+  SUM(PovertyWeighted) AS SumPovertyWeighted,
+  SUM(PopWeight) AS SumPopWeight,
+  SUM(PovertyWeighted) * 1.0 / NULLIF(SUM(PopWeight), 0) AS AvgPovertyRate
+FROM usda_weighted_prep
+GROUP BY County, State;
+```
+
+**Process**
+1. We used the .assign() method to create two intermediate columns: PovertyWeighted (poverty rate multiplied by population) and PopWeight (population).
+2. We grouped the data by County and State, summed these weighted values, and calculated the final weighted average poverty rate.
+3. This approach ensures that larger census tracts have proportionally more influence on the county's overall poverty rate, giving us a more accurate representation than a simple average would provide.
+
+```{sql connection=con}
+-- 檢查資料筆數與欄位數（表格維度）
+SELECT 'poverty_weighted shape' AS label,
+       COUNT(*) AS row_count,
+       (SELECT COUNT(*) FROM pragma_table_info('poverty_weighted')) AS column_count
+FROM poverty_weighted;
+
+-- 預覽前幾列資料
+SELECT *
+FROM poverty_weighted
+LIMIT 5;
+```
+
+**Outcome**
+
+A clean dataset with 254 Texas counties, each with a single, population-weighted poverty rate that can be used for county-level analysis.
+
+## Add Derived Percentage Metrics to County Aggregation
+
+**Purpose:**
+
+Transform raw population counts into meaningful percentages that allow for fair comparisons between counties of different sizes.
+
+## Add Derived Percentage Metrics
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_county_agg_final AS
+SELECT
+  *,
+  (TotalLowAccessPop * 100.0) / NULLIF(TotalPopulation, 0) AS Pct_LowAccess,
+  (TotalLowIncomeLowAccessPop * 100.0) / NULLIF(TotalLowIncomePop, 0) AS Pct_LowIncome_LowAccess,
+  (CountUrbanTracts * 100.0) / NULLIF(TotalTracts, 0) AS Pct_Urban
+FROM usda_county_agg;
+```
+
+# Merge with weighted poverty rate
+
+```{sql connection=con}
+CREATE OR REPLACE TABLE usda_county_agg_final AS
+SELECT 
+  u.*,
+  p.AvgPovertyRate
+FROM usda_county_agg_final AS u
+LEFT JOIN poverty_weighted AS p
+  ON u.County = p.County AND u.State = p.State;
+```
+
+**Process:**
+
+Using the .assign() method with lambda functions, we calculated three key percentage metrics:
+
+1. Pct_LowAccess: The percentage of the county population living more than 1 mile from a supermarket
+2. Pct_LowIncome_LowAccess: The percentage of low-income residents who also face low food access
+3. Pct_Urban: The percentage of census tracts in the county classified as urban
+
+```{sql connection=con}
+SELECT 
+  'usda_county_agg_final shape' AS label,
+  COUNT(*) AS row_count,
+  (SELECT COUNT(*) 
+   FROM pragma_table_info('usda_county_agg_final')) AS column_count
+FROM usda_county_agg_final;
+```
+```{sql connection=con}
+SELECT *
+FROM usda_county_agg_final
+LIMIT 5;
+```
+
+**Outcome**
+
+A dataset where all counties can be directly compared regardless of their population size, making patterns in food access and poverty more visible.
+
+# Data Merging
+
+We now have:
+* **usda_county_agg_final** - USDA data covers population(overall, lowaccess,income), race/ethnicity, percentage of low accessincome, urban/rural,poverty
+* **county_demographics_renamed** - cleaned demographics with renamed columns
+* **food_nutrition_final** - final food nutrition data
+
+## Prepare County Demographics
+```{sql connection=con}
+CREATE OR REPLACE TABLE county_demo_final AS
+SELECT *
+FROM county_demographics_renamed;
+```
+```{sql connection=con}
+SELECT 
+  'county_demo_final shape' AS label,
+  COUNT(*) AS row_count,
+  (SELECT COUNT(*) 
+   FROM pragma_table_info('county_demo_final')) AS column_count
+FROM county_demo_final;
+```
+```{sql connection=con}
+SELECT *
+FROM county_demo_final
+LIMIT 5;
+```
+## Merge USDA and County Demographics
+```{sql connection=con}
+-- 建立合併後的郡層級分析表
+CREATE OR REPLACE TABLE texas_county_merged AS
+SELECT 
+  u.*,         -- 所有來自 usda_county_agg_final 的欄位
+  d.*          -- 所有來自 county_demo_final 的欄位
+FROM usda_county_agg_final AS u
+INNER JOIN county_demo_final AS d
+  ON u.County = d.County AND u.State = d.State;
+```
+
+# Show row/column （equals to  .shape）
+```{sql connection=con}
+SELECT 
+  'texas_county_merged shape' AS label,
+  COUNT(*) AS row_count,
+  (SELECT COUNT(*) 
+   FROM pragma_table_info('texas_county_merged')) AS column_count
+FROM texas_county_merged;
+```
+# Preview the first few rows (equivalent to .head())
+```{sql connection=con}
+SELECT *
+FROM texas_county_merged
+LIMIT 5;
+```
+
+**Process**
+
+***inner merge*** on County and State columns, ensuring that only counties present in both datasets were included.
+
+This merge operation links food access metrics (like percentage of population with low access) with demographic factors (like median income and education levels).
+
+**Outcome**
+
+A unified dataset containing both food access metrics and demographic information for 254 Texas counties.
+
+## Select Only Essential Columns for Final Dataset
+
+**Process**
+
+We carefully selected columns that directly address our research questions about food access disparities:
+
+* <u>Geographic identifiers</u>: County, State
+* <u>Population</u>: TotalPopulation, PopDensity
+* <u>Food Access</u>: Pct_LowAccess, Pct_LowIncome_LowAccess, Pct_Urban
+* <u>Economic</u>: AvgPovertyRate, MedianIncome
+* <u>Education</u>: Pct_BachelorsOrHigher
+* <u>Demographics</u>: Pct_Hispanic, Pct_Black
+```{sql connection=con}
+CREATE OR REPLACE TABLE texas_county_final AS
+SELECT
+  County,
+  State,
+  TotalPopulation,
+  Pct_LowAccess,
+  Pct_LowIncome_LowAccess,
+  Pct_Urban,
+  AvgPovertyRate,
+  MedianIncome,
+  Pct_BachelorsOrHigher,
+  Pct_Hispanic,
+  Pct_Black,
+  PopDensity
+FROM texas_county_merged;
+```
+
+## Equals to shape and colums 
+
+```{sql connection=con}
+-- 表格維度：行數與列數
+SELECT 
+  'texas_county_final shape' AS label,
+  COUNT(*) AS row_count,
+  (SELECT COUNT(*) FROM pragma_table_info('texas_county_final')) AS column_count
+FROM texas_county_final;
+
+-- 預覽前幾筆資料
+SELECT *
+FROM texas_county_final
+LIMIT 5;
+```
+
+**Outcome**
+
+A streamlined, analysis-ready dataset with only the columns needed to answer questions about urban vs. rural disparities, poverty-access correlations, and demographic differences in food access.
+
+# Dataset Preparation
+
+## Save to "Texas County Merged Dataset"
+
+```{sql connection=con}
+SELECT 
+  'texas_county_final shape' AS label,
+  COUNT(*) AS row_count,
+  (SELECT COUNT(*) 
+   FROM pragma_table_info('texas_county_final')) AS column_count
+FROM texas_county_final;
+
+```
+```{sql connection=con}
+SELECT *
+FROM texas_county_final
+LIMIT 5;
+```
+
+## Save to "Food_Nutrition_Final"
+
+```{sql connection=con}
+SELECT 
+  'food_nutrition_final shape' AS label,
+  COUNT(*) AS row_count,
+  (SELECT COUNT(*) FROM pragma_table_info('food_nutrition_final')) AS column_count
+FROM food_nutrition_final;
+```
+```{sql connection=con}
+SELECT *
+FROM food_nutrition_final
+LIMIT 5;
+```
+
+## Export food_nutrition_final table as CSV
+
+```{sql connection=con}
+COPY texas_county_final
+TO 'Texas_County_Merged.csv'
+WITH (HEADER, DELIMITER ',');
+```
+
+```{r}
+reticulate::py_install(c("matplotlib", "numpy", "pandas"))
+```
+
+```{python}
+# ===== Step X: Scatter + Trend Line (Orange Theme) =====
+
+# Import essential libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load dataset safely
+texas_county = pd.read_csv('Texas_County_Merged.csv')
+
+# Filter out missing values
+analysis_data = texas_county.dropna(
+    subset=['AvgPovertyRate', 'Pct_LowIncome_LowAccess']
+).copy()
+
+# Convert from decimal fraction to percent
+analysis_data['AvgPovertyRate'] 
+analysis_data['Pct_LowIncome_LowAccess'] 
+
+print(f"analysis_data shape: {analysis_data.shape}")
+
+# ===== Plot =====
+plt.figure(figsize=(10, 6))
+
+# Orange color scatter
+plt.scatter(
+    analysis_data['AvgPovertyRate'],
+    analysis_data['Pct_LowIncome_LowAccess'],
+    alpha=0.7,
+    s=60,
+    color='#F18F01',  # Nice UT-style orange
+    edgecolor='black', linewidth=0.5
+)
+
+# Add orange trend line
+z = np.polyfit(
+    analysis_data['AvgPovertyRate'],
+    analysis_data['Pct_LowIncome_LowAccess'], 1
+)
+p = np.poly1d(z)
+plt.plot(
+    analysis_data['AvgPovertyRate'],
+    p(analysis_data['AvgPovertyRate']),
+    color='#F18F01',
+    linestyle='--',
+    linewidth=2,
+    label='Trend Line'
+)
+
+plt.xlabel('Average Poverty Rate (%)', fontsize=12)
+plt.ylabel('% Low-Income Population with Low Access', fontsize=12)
+plt.title(
+    'Relationship Between Poverty Rate and Food Access in Texas Counties',
+    fontsize=14,
+    fontweight='bold'
+)
+plt.grid(alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Correlation
+correlation = analysis_data['AvgPovertyRate'].corr(
+    analysis_data['Pct_LowIncome_LowAccess']
+)
+print(f"\nCorrelation: {correlation:.3f}")
+print(f"Count: {len(analysis_data)}")
+```
+
+
+# Challenge and How We Approached
+Throughout the SQL portion of this project, I encountered multiple challenges that required careful debugging, verification, and adaptation of my data wrangling strategies. Below is a summary of the main difficulty areas and the learning outcomes associated with them:
+
+First, I frequently encountered errors such as “Referenced column not found”, which were caused by mismatched expectations of column naming. Sometimes I assumed a field existed when it did not, or I incorrectly referenced the column’s case-sensitive name. This experience taught me to always preview the dataset structure before writing queries.
+
+A second major issue emerged from inconsistent formatting in the State column across different datasets. Some tables represented Texas as “TX” while others used “Texas,” which initially caused filtering and merging failures. I resolved this by explicitly standardizing values using CASE WHEN, learning the importance of applying transformations before joins.
+
+Similarly, I realized that County naming conventions also differed, including variations like “Travis” vs. “Travis County.” These inconsistencies prevented SQL joins from working correctly until suffixes were removed and values were converted to a standardized format. This highlighted that column value standardization is just as critical as column name alignment.
+
+Another challenge occurred during merging operations. Because the USDA dataset is at the census tract level while demographic data is county-level, incorrect joins initially caused row duplication and inaccurate aggregation. Through this, I learned to plan aggregation steps before joins and to perform row count checks after each operation to ensure data integrity.
+
+I also discovered that missing values were represented differently across datasets. In SQL specifically, values such as -1 were not automatically interpreted as missing. This forced me to think critically about what each placeholder meant and handle it with explicit filtering or conversion, instead of a single universal cleaning rule.
+
+Additionally, I learned that SQL queries cannot simply be executed in one large statement without understanding the relationships between tables. I had to build pipelines step-by-step, testing smaller intermediate queries to prevent large-scale errors. This taught me to approach SQL with a structured and cautious mindset.
+
+Another learning curve involved shifting from the row-based programming mindset (used in Python and R) to SQL’s set-based logic. Transitioning my mental model helped me better understand aggregation functions, grouping, and how results are computed at a relational level.
+
+I also encountered uncertainty in deciding how different variables should be aggregated. Population numbers required SUM(), whereas rate-based metrics were better suited to AVG() unless weighted calculations were appropriate. This experience improved my understanding of how statistical logic must align with data type semantics.
+
+Finally, SQL error messages were often less interpretable than those in R or Python. This forced me to develop a consistent debugging approach: simplify the query, break it into smaller parts, and validate each step using preview queries like LIMIT 5. Through repeated practice, debugging started to feel systematic instead of overwhelming.
+
+# Description of tool learning 
+
+First, We learned to use DuckDB as a fast, in-process analytical database, which allowed us to query large CSV files directly without complex server setups. After understanding the basics of SQL syntax, we explored the DuckDB documentation to learn how to efficiently load data using the read_csv_auto() function, using the nullstr='NULL' parameter to correctly handle missing values that were otherwise causing type inference errors. Second, we learned to perform data transformation and cleaning directly within SQL queries. We searched online for methods to standardize inconsistent categorical data and found the CASE WHEN statement to be essential for normalizing state names (e.g., converting "TX", "texas" to "Texas") before performing joins. We also learned to calculate derived metrics using aggregation functions like SUM() and AVG() combined with arithmetic operators to create meaningful indicators like "Percent Low Access" directly in the database. When we encountered challenges with integer division returning zero, we searched Q&A platforms and learned to cast variables to DOUBLE to ensure precise percentage calculations. This tool was indispensable for filtering, joining, and aggregating the three disparate datasets into a single, cohesive analytical table.
