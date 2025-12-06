@@ -1,6 +1,6 @@
 ---
-title: "Food Access & Nutrition Equity in Texas - SQL"
-subtitle: "Data Wrangling - Project Workflow and Report (Pairs)"
+title: "Food Access & Nutrition Equity in Texas"
+subtitle: "SQL - Project Workflow and Report (Pairs)"
 date: today
 author: 
   - Chi-Tse Chiang(cc79734)
@@ -320,6 +320,7 @@ WHERE State = 'TX';
 # Columns Filtering
 
 We now have:
+
 - usda_texas - usda data in Texas
 - county_demographics_texas - counties data in Texas
 - food_nutrition - original(cleaned)
@@ -447,6 +448,7 @@ LIMIT 5;
 # Data Cleaning
 
 We now have:
+
 - usda_texas_subset - usda data filter 10 columns
 - county_demographics_subset - counties data filter 10 columns
 - food_nutrition_subset - food nutrition data filter 9 columns
@@ -464,7 +466,6 @@ SELECT *
 FROM usda_texas_subset
 WHERE row(State, County, Urban, PovertyRate, Pop2010,
           lapop1, lalowi1, lablack1, lahisp1, TractLOWI) IS NOT NULL;
-
 ```
 
 Verification
@@ -489,8 +490,6 @@ SELECT
   (SELECT COUNT(*) FROM usda_texas_subset) - 
   (SELECT COUNT(*) FROM usda_texas_cleaned) AS row_count,
   NULL;
-
-
 ```
 
 Why? Paste it actually have NULL in it
@@ -537,6 +536,34 @@ SELECT
   COUNT(*)
 FROM usda_texas_cleaned
 WHERE TractLOWI = 0;
+
+```
+
+```{sql connection=con}
+SELECT COUNT(*)
+FROM usda_texas_cleaned
+WHERE TractLOWI = 0;
+```
+```{sql connection=con}
+SELECT COUNT(*)
+FROM usda_texas_cleaned
+WHERE lalowi1 = 0;
+```
+```{sql connection=con}
+
+SELECT *
+FROM usda_texas_cleaned
+WHERE TractLOWI = 0 AND lalowi1 = 0;
+```
+
+Here we drop both Tract_LowIncome and LowIncome_LowAccess are zero to make later calculation effectively.
+
+```{sql connection=con}
+
+CREATE OR REPLACE TABLE usda_texas_cleaned AS
+SELECT *
+FROM usda_texas_cleaned
+WHERE TractLOWI != 0;
 
 ```
 
@@ -599,23 +626,17 @@ SELECT
   SUM(CASE WHEN "Data.Vitamins.Vitamin A - RAE" IS NULL THEN 1 ELSE 0 END) +
   SUM(CASE WHEN "Data.Major Minerals.Calcium" IS NULL THEN 1 ELSE 0 END) AS total_nulls
 FROM food_nutrition_subset;
-
 ```
-
 
 Since there's no missing value or NULL, we can just move to next step
 
-## Standardize Column Names
+# Rename County Demographics columns
 
 Now we have three clean datasets with NO missing values:
 - usda_texas_cleaned
 - county_demographics_cleaned
 - food_nutrition_subset
 
-### County Demographics - Flatten dot notation -> county_demographics_renamed
-
-
-# Rename County Demographics columns
 We use PRAGMA table_info('table_name') to quickly check column names and structure of a table — like colnames() in R.
 
 It’s faster and cleaner than running SELECT *, because it just shows the metadata (not actual data). Perfect when renaming columns or debugging!
@@ -638,10 +659,9 @@ FROM county_demographics_cleaned;
 ```{sql connection=con}
 SELECT name
 FROM pragma_table_info('county_demographics_renamed');
-
 ```
 
-### Food Nutrition - Simplify nested names -> food_nutrtion_renamed
+## Food Nutrition - Simplify nested names -> food_nutrtion_renamed
 
 ```{sql connection=con}
 CREATE OR REPLACE TABLE food_nutrition_renamed AS
@@ -677,7 +697,6 @@ UNION ALL
 
 SELECT 'Unique counties in Demographics', COUNT(DISTINCT County)
 FROM county_demographics_renamed;
-
 ```
 
 Because we drop a NULL value in county_demographics dataset, so the counties would one less than USDA.
@@ -685,28 +704,28 @@ Because we drop a NULL value in county_demographics dataset, so the counties wou
 # Data Transformation
 
 We now have:
-* usda_texas_cleaned - cleaned USDA data with standardized State
-* county_demographics_renamed - cleaned demographics with renamed columns
-* food_nutrition_renamed - cleaned food data with renamed columns
+
+- usda_texas_cleaned - cleaned USDA data with standardized State
+- county_demographics_renamed - cleaned demographics with renamed columns
+- food_nutrition_renamed - cleaned food data with renamed columns
 
 ## Calculate Derived Metrics (USDA Atlas)
 
 ### Calculate PercentLowAccess (% of tract population >1 mile from supermarket)
 
 What percentage of the tract's total population lives more than 1 mile from a supermarket?
+
 ```{sql connection=con}
 CREATE OR REPLACE TABLE usda_with_metrics AS
 SELECT *,
        (lapop1 * 100.0) / NULLIF(Pop2010, 0) AS PercentLowAccess
 FROM usda_texas_cleaned;
-
 ```
 
 ```{sql connection=con}
 SELECT County, Pop2010, lapop1, PercentLowAccess
 FROM usda_with_metrics
 LIMIT 5;
-
 ```
 
 Example:
@@ -760,7 +779,6 @@ Percentages allow fair comparisons between large urban tracts and small rural tr
 ### Verify New Columns
 ```{sql connection=con}
 PRAGMA table_info('usda_with_metrics');
-
 ```
 
 ## Categorize Nutrition (Food Nutrition) 
@@ -805,7 +823,6 @@ SELECT Category, 'Calcium', Calcium FROM food_nutrition_grouped;
 ```{sql connection=con}
 SELECT * FROM food_nutrition_long
 LIMIT 10;
-
 ```
 
 We convert the long format back to wide format.
@@ -917,6 +934,7 @@ LIMIT 5;
 # Data Aggregation
 
 We now have:
+
 - usda_with_metrics - USDA data with two new columns (pct_lowaccess-> tracts have low access , pct_lowincomelowaccess -> low income with low access)
 - county_demographics_renamed - cleaned demographics with renamed columns
 - food_nutrition_final - final food nutrition data
@@ -1022,7 +1040,33 @@ A clean dataset with 254 Texas counties, each with a single, population-weighted
 
 Transform raw population counts into meaningful percentages that allow for fair comparisons between counties of different sizes.
 
-## Add Derived Percentage Metrics
+**Exceptional Handling**
+
+Before we ```assign```new columns, we should examine whether any abnormal values exist? (Ex. TotalLowAccessPop > TotalPopulation)
+
+```{sql connection=con}
+CREATE TABLE usda_county_agg_cleaned AS
+SELECT *
+FROM usda_county_agg
+WHERE TotalLowAccessPop < TotalPopulation
+  AND TotalLowIncomeLowAccessPop < TotalLowIncomePop;
+```
+
+**Original Rows**
+
+```{sql connection=con}
+SELECT COUNT(*) AS OriginalRows
+FROM usda_county_agg;
+```
+
+**Cleaned Rows**
+
+```{sql connection=con}
+SELECT COUNT(*) AS CleanedRows
+FROM usda_county_agg_cleaned;
+```
+
+Then we start to add Derived Percentage Metrics
 
 ```{sql connection=con}
 CREATE OR REPLACE TABLE usda_county_agg_final AS
@@ -1031,7 +1075,7 @@ SELECT
   (TotalLowAccessPop * 100.0) / NULLIF(TotalPopulation, 0) AS Pct_LowAccess,
   (TotalLowIncomeLowAccessPop * 100.0) / NULLIF(TotalLowIncomePop, 0) AS Pct_LowIncome_LowAccess,
   (CountUrbanTracts * 100.0) / NULLIF(TotalTracts, 0) AS Pct_Urban
-FROM usda_county_agg;
+FROM usda_county_agg_cleaned;
 ```
 
 # Merge with weighted poverty rate
@@ -1075,9 +1119,10 @@ A dataset where all counties can be directly compared regardless of their popula
 # Data Merging
 
 We now have:
-* **usda_county_agg_final** - USDA data covers population(overall, lowaccess,income), race/ethnicity, percentage of low accessincome, urban/rural,poverty
-* **county_demographics_renamed** - cleaned demographics with renamed columns
-* **food_nutrition_final** - final food nutrition data
+
+- **usda_county_agg_final** - USDA data covers population(overall, lowaccess,income), race/ethnicity, percentage of low accessincome, urban/rural,poverty
+- **county_demographics_renamed** - cleaned demographics with renamed columns
+- **food_nutrition_final** - final food nutrition data
 
 ## Prepare County Demographics
 ```{sql connection=con}
@@ -1111,6 +1156,7 @@ INNER JOIN county_demo_final AS d
 ```
 
 # Show row/column （equals to  .shape）
+
 ```{sql connection=con}
 SELECT 
   'texas_county_merged shape' AS label,
@@ -1120,6 +1166,7 @@ SELECT
 FROM texas_county_merged;
 ```
 # Preview the first few rows (equivalent to .head())
+
 ```{sql connection=con}
 SELECT *
 FROM texas_county_merged
@@ -1304,25 +1351,24 @@ print(f"Count: {len(analysis_data)}")
 
 
 # Challenge and How We Approached
-Throughout the SQL portion of this project, I encountered multiple challenges that required careful debugging, verification, and adaptation of my data wrangling strategies. Below is a summary of the main difficulty areas and the learning outcomes associated with them:
 
-First, I frequently encountered errors such as “Referenced column not found”, which were caused by mismatched expectations of column naming. Sometimes I assumed a field existed when it did not, or I incorrectly referenced the column’s case-sensitive name. This experience taught me to always preview the dataset structure before writing queries.
+Throughout the SQL portion of this project, we encountered multiple challenges that required careful debugging, verification, and adaptation of our data wrangling strategies. Below is a summary of the main difficulty areas and the learning outcomes associated with:
 
-A second major issue emerged from inconsistent formatting in the State column across different datasets. Some tables represented Texas as “TX” while others used “Texas,” which initially caused filtering and merging failures. I resolved this by explicitly standardizing values using CASE WHEN, learning the importance of applying transformations before joins.
+First, we frequently encountered errors such as “Referenced column not found”, which were caused by mismatched expectations of column naming. Sometimes we assumed a field existed when it did not, or we incorrectly referenced the column’s case-sensitive name. This experience taught us to always preview the dataset structure before writing queries.
 
-Similarly, I realized that County naming conventions also differed, including variations like “Travis” vs. “Travis County.” These inconsistencies prevented SQL joins from working correctly until suffixes were removed and values were converted to a standardized format. This highlighted that column value standardization is just as critical as column name alignment.
+A second major issue emerged from inconsistent formatting in the State column across different datasets. Some tables represented Texas as “TX” while others used “Texas,” which initially caused filtering and merging failures. We resolved this by standardizing values using CASE WHEN, learning the importance of applying transformations before joins.
 
-Another challenge occurred during merging operations. Because the USDA dataset is at the census tract level while demographic data is county-level, incorrect joins initially caused row duplication and inaccurate aggregation. Through this, I learned to plan aggregation steps before joins and to perform row count checks after each operation to ensure data integrity.
+Similarly, we realized that County naming conventions also differed, including variations like “Travis” vs. “Travis County.” These inconsistencies prevented SQL joins from working correctly until suffixes were removed and values were converted to a standardized format. This highlighted that column value standardization is just as critical as column name alignment.
 
-I also discovered that missing values were represented differently across datasets. In SQL specifically, values such as -1 were not automatically interpreted as missing. This forced me to think critically about what each placeholder meant and handle it with explicit filtering or conversion, instead of a single universal cleaning rule.
+Another challenge occurred during merging operations. Because the USDA dataset is at the census tract level while demographic data is county-level, incorrect joins initially caused row duplication and inaccurate aggregation. Through this, we learned to plan aggregation steps before joins and to perform row count checks after each operation to ensure data integrity.
 
-Additionally, I learned that SQL queries cannot simply be executed in one large statement without understanding the relationships between tables. I had to build pipelines step-by-step, testing smaller intermediate queries to prevent large-scale errors. This taught me to approach SQL with a structured and cautious mindset.
+We also discovered that missing values were represented differently across datasets. In SQL, values such as -1 were not automatically interpreted as missing. This forced us to think critically about what each placeholder meant and handle it with explicit filtering or conversion, instead of a single universal cleaning rule.
 
-Another learning curve involved shifting from the row-based programming mindset (used in Python and R) to SQL’s set-based logic. Transitioning my mental model helped me better understand aggregation functions, grouping, and how results are computed at a relational level.
+Additionally, we learned that SQL queries cannot simply be executed in one large statement without understanding the relationships between tables. We had to build pipelines step-by-step, testing smaller intermediate queries to prevent large-scale errors. This taught us to approach SQL with a structured and cautious mindset.
 
-I also encountered uncertainty in deciding how different variables should be aggregated. Population numbers required SUM(), whereas rate-based metrics were better suited to AVG() unless weighted calculations were appropriate. This experience improved my understanding of how statistical logic must align with data type semantics.
+We also encountered uncertainty in deciding how different variables should be aggregated. Population numbers required ```SUM()```, whereas rate-based metrics were better suited to ```AVG()``` unless weighted calculations were appropriate. This experience improved our understanding of how statistical logic must align with data type semantics.
 
-Finally, SQL error messages were often less interpretable than those in R or Python. This forced me to develop a consistent debugging approach: simplify the query, break it into smaller parts, and validate each step using preview queries like LIMIT 5. Through repeated practice, debugging started to feel systematic instead of overwhelming.
+Finally, SQL error messages were often less interpretable than those in R or Python. This forced us to develop a consistent debugging approach: simplify the query, break it into smaller parts, and validate each step using preview queries like LIMIT 5. Through repeated practice, debugging started to feel systematic.
 
 # Description of tool learning 
 

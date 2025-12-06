@@ -222,6 +222,7 @@ head(county_demographics_texas)
 # Columns Filtering
 
 We now have:
+
 - usda_texas - usda data in Texas
 - county_demographics_texas - counties data in Texas
 - food_nutrition - original(cleaned)
@@ -338,9 +339,10 @@ head(food_nutrition_subset)
 # Data Cleaning
 
 We now have:
-* usda_texas_subset - usda data filter 10 with renamed columns
-* county_demographics_subset - counties filter 10 with renamed columns
-* food_nutrition_subset - food nutrition data filter 9 renamed columns
+
+- usda_texas_subset - usda data filter 10 with renamed columns
+- county_demographics_subset - counties filter 10 with renamed columns
+- food_nutrition_subset - food nutrition data filter 9 renamed columns
 
 ## Handle Missing Values
 
@@ -387,9 +389,17 @@ cat("Rows removed:", nrow(usda_texas_subset) - nrow(usda_texas_cleaned),"\n")
 
 ```{r}
 cat("Zeros in Pop2010:", sum(usda_texas_cleaned$Pop2010 == 0), "\n")
-
 cat("Zeros in Tract_LowIncome:", sum(usda_texas_cleaned$Tract_LowIncome == 0), "\n")
+
+usda_texas_cleaned <- usda_texas_cleaned %>%
+  filter(!(Tract_LowIncome == 0 & LowIncome_LowAccess == 0))
+
+cat(paste("Find", nrow(usda_texas_cleaned), "rows data are not both zero：\n"))
+
+print(usda_texas_cleaned)
 ```
+
+Here we drop both Tract_LowIncome and LowIncome_LowAccess are zero to make later calculation effectively.
 
 ### county_demographics_subset
 
@@ -436,9 +446,10 @@ Because we drop a NULL value in county_demographics dataset, so the counties wou
 # Data Transformation
 
 We now have:
-* usda_texas_cleaned - cleaned USDA data with standardized State
-* county_demographics_cleaned - cleaned demographics data
-* food_nutrition_subset - cleaned food data 
+
+- usda_texas_cleaned - cleaned USDA data with standardized State
+- county_demographics_cleaned - cleaned demographics data
+- food_nutrition_subset - cleaned food data 
 
 ## Calculate Derived Metrics (USDA Atlas)
 
@@ -630,9 +641,10 @@ head(food_nutrition_final)
 # Data Aggregation
 
 We now have:
-* usda_with_metrics - USDA data with two new columns (pct_lowaccess-> tracts have low access , pct_lowincomelowaccess -> low income with low access)
-* county_demographics_cleaned - cleaned demographics with renamed columns
-* food_nutrition_final - final food nutrition data
+
+- usda_with_metrics - USDA data with two new columns (pct_lowaccess-> tracts have low access , pct_lowincomelowaccess -> low income with low access)
+- county_demographics_cleaned - cleaned demographics with renamed columns
+- food_nutrition_final - final food nutrition data
 
 ## Aggregate USDA Atlas to County Level
 
@@ -712,10 +724,28 @@ A clean dataset with 254 Texas counties, each with a single, population-weighted
 
 Transform raw population counts into meaningful percentages that allow for fair comparisons between counties of different sizes.
 
+**Exceptional Handling**
+
+Before we ```assign```new columns, we should examine whether any abnormal values exist? (Ex. TotalLowAccessPop > TotalPopulation)
+
+```{r}
+# We use to filter to pick up rows that are reasonable
+
+usda_county_agg_cleaned <- usda_county_agg %>%
+  filter(TotalLowAccessPop < TotalPopulation, 
+         TotalLowIncomeLowAccessPop < TotalLowIncomePop)
+
+print(paste("Original rows:", nrow(usda_county_agg)))
+print(paste("After removing unreasonable rows:", nrow(usda_county_agg_cleaned)))
+print(paste("Rows removed:", nrow(usda_county_agg) - nrow(usda_county_agg_cleaned)))
+```
+
+Then we start to add Derived Percentage Metrics
+
 ```{r}
 # Create percentage columns using mutate()
 
-usda_county_agg_final <- usda_county_agg %>%
+usda_county_agg_final <- usda_county_agg_cleaned %>%
   mutate(
     Pct_LowAccess = (TotalLowAccessPop / TotalPopulation) * 100,
     Pct_LowIncome_LowAccess = (TotalLowIncomeLowAccessPop / TotalLowIncomePop) * 100,
@@ -745,9 +775,10 @@ head(usda_county_agg_final)
 # Data Merging
 
 We now have:
-* **usda_county_agg_final** - USDA data covers population(overall, lowaccess,income), race/ethnicity, percentage of low accessincome, urban/rural,poverty
-* **county_demographics_cleaned** - cleaned demographics with renamed columns
-* **food_nutrition_final** - final food nutrition data
+
+- **usda_county_agg_final** - USDA data covers population(overall, lowaccess,income), race/ethnicity, percentage of low accessincome, urban/rural,poverty
+- **county_demographics_cleaned** - cleaned demographics with renamed columns
+- **food_nutrition_final** - final food nutrition data
 
 ## Prepare County Demographics
 
@@ -840,7 +871,6 @@ print(paste("Columns:", ncol(texas_county_final)))
 head(texas_county_final)
 ```
 
-
 ## Save to "Food_Nutrition_Final"
 
 ```{r}
@@ -908,15 +938,15 @@ cat("Number of counties analyzed:", nrow(analysis_data), "\n")
 
 # Challenge and How We Approached
 
-Working through this three dataset food accessibility project presented a steady stream of challenges, from initial data exploration through the final merge operations. Though the individual steps weren't conceptually revolutionary, the cumulative effect of working with three large, messy datasets taught us that data wrangling is fundamentally about systematic problem-solving.
+Working through this three dataset food accessibility project presented a steady stream of challenges, from initial data exploration through the final merge operations. Though the individual steps weren't revolutionary, the cumulative effect of working with three large, messy datasets taught us that data wrangling is about systematic problem-solving.
 
-Our first major challenge hit us during the initial data loading step. The USDA Food Access Research Atlas arrived with over 72,000 rows and 147 columns. We couldn't immediately tell which columns mattered for us Texas-focused data wrangling, and the huge volume made it tempting to just grab everything and figure it out later. Instead, We forced to slow down and examine the data dictionary, identifying which accessibility metrics actually aligned with my research questions about food deserts and low-income populations. This disciplined subsetting approach—reducing from 147 columns down to just 10-15 core variables—became a pattern I repeated with the County Demographics (43 columns) and Food Nutrition (38 columns) datasets. By the end, I had achieved an 86.8% dimension reduction across all three datasets, transforming 228 total columns into just 30 variables.
+Our first major challenge hit us during the initial data loading step. The USDA Food Access Research Atlas arrived with over 72,000 rows and 147 columns. We couldn't immediately tell which columns mattered for us Texas-focused data wrangling, and the huge volume made it tempting to just grab everything and figure it out later. Instead, We forced to slow down and examine the data dictionary, identifying which accessibility metrics actually aligned with my research questions about food deserts and low-income populations. This disciplined subsetting approach—reducing from 147 columns down to just 10-15 core variables—became a pattern we repeated with the County Demographics (43 columns) and Food Nutrition (38 columns) datasets. By the end, we had achieved an 86.8% dimension reduction across all three datasets, transforming 228 total columns into just 30 variables.
 
 Once we had manageable subsets, we encountered our next obstacle, which is inconsistent missing value representations. The County Demographics dataset used -1 as a missing value placeholder, the USDA Atlas mixed genuine zeros with missing data markers, and the Food Nutrition dataset contained standard NaN values. We couldn't simply apply one universal cleaning rule. Instead, we developed dataset-specific filtering out -1 values from demographics, carefully distinguishing between "no low-access population" (legitimate zero) versus "data not collected" (missing) in the food access data, and handling NaN values in the nutrition dataset. This taught us that missing data isn't a single problem with a single solution; it requires understanding what missingness means in each specific context.
 
 The census tract-to-county mapping challenge emerged during our merge planning phase. The Food Access Atlas operates at the census tract level, while County Demographics works with county-level aggregates. We initially worried about losing by aggregating tracts up to counties, but we realized this was actually necessary for our wrangling scope. The real challenge became ensuring we didn't accidentally duplicate data during the aggregation process or lose tracts that didn't cleanly map to our Texas county subset. We solved this by filtering for Texas first at the tract level, then carefully aggregating using sum functions for population counts and mean functions for rate-based metrics, always verifying our row counts before and after each transformation step.
 
-Perhaps our most frustrating challenge involved inconsistent naming conventions across datasets. County names appeared with and without "County" suffixes, state representations alternated between full names and abbreviations, and the Food Nutrition dataset contained food name variations that seemed designed to confound any analysis. Early on, we attempted to handle these variations through complex pattern matching during data import, building what essentially became a mental dictionary of name pairs. The breakthrough came when we realized we needed to standardize these values explicitly through dedicated transformation steps rather than trying to match variations during merges. For counties, I stripped suffixes and converted to title case. For states, I created a consistent Texas filter that could handle both "TX" and "Texas" representations.
+Perhaps our most frustrating challenge involved inconsistent naming conventions across datasets. County names appeared with and without "County" suffixes, state representations alternated between full names and abbreviations, and the Food Nutrition dataset contained food name variations that seemed designed to confound any analysis. Early on, we attempted to handle these variations through complex pattern matching during data import, building what essentially became a mental dictionary of name pairs. The breakthrough came when we realized we needed to standardize these values explicitly through dedicated transformation steps rather than trying to match variations during merges. For counties, we stripped suffixes and converted to title case. For states, we created a consistent Texas filter that could handle both "TX" and "Texas" representations.
 
 Our final major challenge involved determining the correct merge sequence and types. With three datasets coming from completely different sources, we had to map out which variables could serve as keys. We settled on a two-track approach: merging Food Access and County Demographics on county and state names (many-to-one, since multiple tracts map to each county), while keeping Food Nutrition as a standalone dataset that could later be linked through categorical analysis rather than direct merges. The trickiest part was ensuring we used inner joins to maintain only Texas-specific records while not accidentally dropping valid data due to name mismatches we hadn't yet caught.
 
